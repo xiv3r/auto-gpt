@@ -1,44 +1,61 @@
-name: Fork and Sync Repository
+name: Upstream Sync
 
 on:
   workflow_dispatch:
     inputs:
-      target_repo:
-        description: 'Target repository (owner/repo)'
+      upstream_repo:
+        description: 'Upstream repository (owner/repo)'
         required: true
-        default: 'owner/source-repo'
-      github_token:
-        description: 'GitHub token with repo permissions'
-        required: true
-        default: '${{ secrets.GITHUB_TOKEN }}'
+        default: 'ORIGINAL_OWNER/ORIGINAL_REPO'
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
 
 jobs:
-  fork-and-sync:
+  sync:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout current repository
+    - name: Checkout
       uses: actions/checkout@v4
       with:
-        token: ${{ github.token }}
         fetch-depth: 0
 
-    - name: Setup Git
+    - name: Set up Git
       run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
 
-    - name: Add target repository as remote
+    - name: Get upstream repository
+      id: upstream
       run: |
-        git remote add target https://github.com/${{ github.event.inputs.target_repo }}.git
-        git fetch target --tags
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "repo=${{ github.event.inputs.upstream_repo }}" >> $GITHUB_OUTPUT
+        else
+          echo "repo=ORIGINAL_OWNER/ORIGINAL_REPO" >> $GITHUB_OUTPUT
+        fi
 
-    - name: Get all branches from target
+    - name: Add upstream remote
       run: |
-        for branch in $(git branch -r | grep target/ | sed 's/target\///' | grep -v 'HEAD'); do
-          git checkout -b $branch target/$branch || true
-        done
+        git remote add upstream https://github.com/${{ steps.upstream.outputs.repo }}.git
 
-    - name: Push all branches to current repository
+    - name: Fetch upstream
       run: |
-        git push origin --all --force
-        git push origin --tags --force
+        git fetch upstream
+
+    - name: Check for updates
+      id: check
+      run: |
+        if git log HEAD..upstream/main --oneline; then
+          echo "has_updates=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_updates=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Merge updates
+      if: steps.check.outputs.has_updates == 'true'
+      run: |
+        git merge upstream/main --no-edit
+
+    - name: Push changes
+      if: steps.check.outputs.has_updates == 'true'
+      run: |
+        git push origin HEAD:${{ github.ref }}
