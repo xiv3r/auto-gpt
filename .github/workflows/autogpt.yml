@@ -1,59 +1,36 @@
-name: Sync Fork
+name: Mirror Repository
+
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '0 5 * * *'
+    # Run every 6 hours (adjust as needed)
+    - cron: '0 */6 * * *'
+  workflow_dispatch:  # Allow manual triggering
+  push:
+    branches: [ master ]
 
 jobs:
-  sync-fork:
+  mirror:
     runs-on: ubuntu-latest
+    
     steps:
-    - name: Checkout repository
+    - name: Checkout current repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Add upstream
+        fetch-depth: 0  # Fetch all history for all branches and tags
+        
+    - name: Mirror from target repository
       run: |
-        git remote add upstream https://github.com/BlackArch/blackarch.git || true
-        git fetch upstream
-
-    - name: Configure git
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-
-    - name: Merge changes (excluding workflow files)
-      run: |
-        # Check if we're behind upstream
-        if ! git merge-base --is-ancestor upstream/main HEAD 2>/dev/null; then
-          # Create a temporary branch for merging
-          git checkout -b temp-merge-branch
-          
-          # Merge but don't commit yet
-          git merge --no-commit --no-ff upstream/main --allow-unrelated-histories || true
-          
-          # Reset any changes to workflow files
-          git reset HEAD -- .github/workflows/
-          git checkout HEAD -- .github/workflows/
-          
-          # Add all changes except workflow files
-          git add -A
-          git reset -- .github/workflows/
-          
-          # Commit the merge (only if there are changes)
-          if ! git diff --cached --quiet; then
-            git commit -m "Merge upstream changes (excluding workflow files)"
-            git checkout main
-            git merge temp-merge-branch --no-ff -m "Merge upstream changes"
-            git branch -D temp-merge-branch
-            git push origin main
-          else
-            echo "No changes to merge (excluding workflow files)"
-            git checkout main
-            git branch -D temp-merge-branch
-          fi
-        else
-          echo "Already up to date."
-        fi
+        # Add target repository as remote
+        git remote add target https://github.com/BlackArch/blackarch.git
+        
+        # Fetch all branches and tags from target
+        git fetch target --tags
+        
+        # Push all branches to current repository
+        git push --all origin
+        
+        # Push all tags to current repository
+        git push --tags origin
+      env:
+        # Use a personal access token for write access
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
