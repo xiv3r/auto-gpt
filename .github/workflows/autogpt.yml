@@ -1,19 +1,19 @@
-name: Clone and Upload Repository
+name: Fork and Sync Repository
 
 on:
   workflow_dispatch:
     inputs:
-      source_repo:
-        description: 'Source repository URL'
+      target_repo:
+        description: 'Target repository (owner/repo)'
         required: true
-        default: 'https://github.com/Significant-Gravitas/AutoGPT.git'
+        default: 'owner/source-repo'
       github_token:
-        description: 'GitHub token'
+        description: 'GitHub token with repo permissions'
         required: true
         default: '${{ secrets.GITHUB_TOKEN }}'
 
 jobs:
-  clone-and-upload:
+  fork-and-sync:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout current repository
@@ -22,12 +22,23 @@ jobs:
         token: ${{ github.token }}
         fetch-depth: 0
 
-    - name: Clone source repository
+    - name: Setup Git
       run: |
-        git clone --mirror ${{ github.event.inputs.source_repo }} source-repo-mirror
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
 
-    - name: Add source as remote and fetch
+    - name: Add target repository as remote
       run: |
-        cd source-repo-mirror
-        git remote set-url origin https://github.com/${{ github.repository }}.git
-        git push --mirror
+        git remote add target https://github.com/${{ github.event.inputs.target_repo }}.git
+        git fetch target --tags
+
+    - name: Get all branches from target
+      run: |
+        for branch in $(git branch -r | grep target/ | sed 's/target\///' | grep -v 'HEAD'); do
+          git checkout -b $branch target/$branch || true
+        done
+
+    - name: Push all branches to current repository
+      run: |
+        git push origin --all --force
+        git push origin --tags --force
