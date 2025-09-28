@@ -33,4 +33,4 @@ jobs:
         git push --tags origin
       env:
         # Use a personal access token for write access
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
