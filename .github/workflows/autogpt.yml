@@ -27,12 +27,12 @@ jobs:
     - name: Merge changes (excluding workflow files)
       run: |
         # Check if we're behind upstream
-        if ! git merge-base --is-ancestor upstream/master HEAD 2>/dev/null; then
+        if ! git merge-base --is-ancestor upstream/main HEAD 2>/dev/null; then
           # Create a temporary branch for merging
           git checkout -b temp-merge-branch
           
           # Merge but don't commit yet
-          git merge --no-commit --no-ff upstream/master --allow-unrelated-histories || true
+          git merge --no-commit --no-ff upstream/main --allow-unrelated-histories || true
           
           # Reset any changes to workflow files
           git reset HEAD -- .github/workflows/
@@ -45,13 +45,13 @@ jobs:
           # Commit the merge (only if there are changes)
           if ! git diff --cached --quiet; then
             git commit -m "Merge upstream changes (excluding workflow files)"
-            git checkout master
+            git checkout main
             git merge temp-merge-branch --no-ff -m "Merge upstream changes"
             git branch -D temp-merge-branch
-            git push origin master
+            git push origin main
           else
             echo "No changes to merge (excluding workflow files)"
-            git checkout master
+            git checkout main
             git branch -D temp-merge-branch
           fi
         else
