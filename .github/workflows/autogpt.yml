@@ -1,4 +1,4 @@
-name: Sync
+name: Sync Fork
 on:
   workflow_dispatch:
   schedule:
@@ -16,7 +16,7 @@ jobs:
 
     - name: Add upstream
       run: |
-        git remote add upstream https://github.com/Significant-Gravitas/AutoGPT.git || true
+        git remote add upstream https://github.com/n8n-io/n8n.git || true
         git fetch upstream
 
     - name: Configure git
