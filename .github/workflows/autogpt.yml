@@ -2,11 +2,11 @@ name: Mirror Repository
 
 on:
   schedule:
-    # Run every 6 hours (adjust as needed)
-    - cron: '0 */6 * * *'
+    # Run every 1 am
+    - cron: '0 1 * * *'
   workflow_dispatch:  # Allow manual triggering
   push:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
   mirror:
