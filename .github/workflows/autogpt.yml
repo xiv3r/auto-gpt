@@ -1,59 +1,33 @@
-name: Sync Fork
+name: Clone and Upload Repository
+
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 5 * * *'
+    inputs:
+      source_repo:
+        description: 'Source repository URL'
+        required: true
+        default: 'https://github.com/Significant-Gravitas/AutoGPT.git'
+      github_token:
+        description: 'GitHub token'
+        required: true
+        default: '${{ secrets.GITHUB_TOKEN }}'
 
 jobs:
-  sync-fork:
+  clone-and-upload:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
+    - name: Checkout current repository
       uses: actions/checkout@v4
       with:
+        token: ${{ github.token }}
         fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Add upstream
+    - name: Clone source repository
       run: |
-        git remote add upstream https://github.com/Significant-Gravitas/AutoGPT.git || true
-        git fetch upstream
+        git clone --mirror ${{ github.event.inputs.source_repo }} source-repo-mirror
 
-    - name: Configure git
+    - name: Add source as remote and fetch
       run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-
-    - name: Merge changes (excluding workflow files)
-      run: |
-        # Check if we're behind upstream
-        if ! git merge-base --is-ancestor upstream/master HEAD 2>/dev/null; then
-          # Create a temporary branch for merging
-          git checkout -b temp-merge-branch
-          
-          # Merge but don't commit yet
-          git merge --no-commit --no-ff upstream/master --allow-unrelated-histories || true
-          
-          # Reset any changes to workflow files
-          git reset HEAD -- .github/workflows/
-          git checkout HEAD -- .github/workflows/
-          
-          # Add all changes except workflow files
-          git add -A
-          git reset -- .github/workflows/
-          
-          # Commit the merge (only if there are changes)
-          if ! git diff --cached --quiet; then
-            git commit -m "Merge upstream changes (excluding workflow files)"
-            git checkout master
-            git merge temp-merge-branch --no-ff -m "Merge upstream changes"
-            git branch -D temp-merge-branch
-            git push origin master
-          else
-            echo "No changes to merge (excluding workflow files)"
-            git checkout master
-            git branch -D temp-merge-branch
-          fi
-        else
-          echo "Already up to date."
-        fi
+        cd source-repo-mirror
+        git remote set-url origin https://github.com/${{ github.repository }}.git
+        git push --mirror
