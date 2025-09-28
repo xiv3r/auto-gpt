@@ -1,61 +1,59 @@
-name: Upstream Sync
-
+name: Sync Fork
 on:
   workflow_dispatch:
-    inputs:
-      upstream_repo:
-        description: 'Upstream repository (owner/repo)'
-        required: true
-        default: 'ORIGINAL_OWNER/ORIGINAL_REPO'
   schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+    - cron: '0 5 * * *'
 
 jobs:
-  sync:
+  sync-fork:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
+    - name: Checkout repository
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Set up Git
+    - name: Add upstream
+      run: |
+        git remote add upstream https://github.com/BlackArch/blackarch.git || true
+        git fetch upstream
+
+    - name: Configure git
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
 
-    - name: Get upstream repository
-      id: upstream
+    - name: Merge changes (excluding workflow files)
       run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "repo=${{ github.event.inputs.upstream_repo }}" >> $GITHUB_OUTPUT
+        # Check if we're behind upstream
+        if ! git merge-base --is-ancestor upstream/master HEAD 2>/dev/null; then
+          # Create a temporary branch for merging
+          git checkout -b temp-merge-branch
+          
+          # Merge but don't commit yet
+          git merge --no-commit --no-ff upstream/master --allow-unrelated-histories || true
+          
+          # Reset any changes to workflow files
+          git reset HEAD -- .github/workflows/
+          git checkout HEAD -- .github/workflows/
+          
+          # Add all changes except workflow files
+          git add -A
+          git reset -- .github/workflows/
+          
+          # Commit the merge (only if there are changes)
+          if ! git diff --cached --quiet; then
+            git commit -m "Merge upstream changes (excluding workflow files)"
+            git checkout master
+            git merge temp-merge-branch --no-ff -m "Merge upstream changes"
+            git branch -D temp-merge-branch
+            git push origin master
+          else
+            echo "No changes to merge (excluding workflow files)"
+            git checkout master
+            git branch -D temp-merge-branch
+          fi
         else
-          echo "repo=ORIGINAL_OWNER/ORIGINAL_REPO" >> $GITHUB_OUTPUT
+          echo "Already up to date."
         fi
-
-    - name: Add upstream remote
-      run: |
-        git remote add upstream https://github.com/${{ steps.upstream.outputs.repo }}.git
-
-    - name: Fetch upstream
-      run: |
-        git fetch upstream
-
-    - name: Check for updates
-      id: check
-      run: |
-        if git log HEAD..upstream/main --oneline; then
-          echo "has_updates=true" >> $GITHUB_OUTPUT
-        else
-          echo "has_updates=false" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Merge updates
-      if: steps.check.outputs.has_updates == 'true'
-      run: |
-        git merge upstream/main --no-edit
-
-    - name: Push changes
-      if: steps.check.outputs.has_updates == 'true'
-      run: |
-        git push origin HEAD:${{ github.ref }}
