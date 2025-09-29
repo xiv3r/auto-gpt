@@ -1,41 +1,30 @@
-name: Daily Fork Sync
+name: Fork and Upload
 
 on:
-  schedule:
-    - cron: '0 2 * * *' # Runs daily at 02:00 UTC
-  workflow_dispatch:
+  workflow_dispatch: # Manual trigger
 
 jobs:
-  sync:
+  fork_and_upload:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout current repo
+      - name: Checkout current repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Set up git user
+      - name: Clone source repository
+        run: |
+          git clone --depth=10 https://github.com/Significant-Gravitas/AutoGPT.git upstream-repo
+
+      - name: Copy contents to current repo
+        run: |
+          rsync -av --exclude='.git' upstream-repo/ ./
+
+      - name: Set up git config
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Add upstream remote
+      - name: Commit and push changes
         run: |
-          git remote add upstream https://github.com/Significant-Gravitas/AutoGPT.git
-          git fetch upstream || echo "Upstream fetch failed"
-
-      - name: Find current branch
-        id: branch
-        run: |
-          echo "branch=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_OUTPUT
-
-      - name: Pull upstream changes
-        run: |
-          set -e
-          # If upstream branch exists, pull; else, skip
-          if git ls-remote --exit-code --heads upstream $(git rev-parse --abbrev-ref HEAD); then
-            git pull upstream $(git rev-parse --abbrev-ref HEAD) --no-edit
-            git push origin $(git rev-parse --abbrev-ref HEAD)
-          else
-            echo "Upstream branch $(git rev-parse --abbrev-ref HEAD) does not exist, skipping."
-          fi
+          git add .
+          git diff --cached --quiet || git commit -m "Forked from upstream"
+          git push
