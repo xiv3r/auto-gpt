@@ -12,7 +12,7 @@ jobs:
 
       - name: Clone source repository
         run: |
-          git clone --depth=10 https://github.com/Significant-Gravitas/AutoGPT.git upstream-repo
+          git clone --depth=10 https://github.com/aircrack-ng/rtl8188eus.git upstream-repo
 
       - name: Copy contents to current repo
         run: |
