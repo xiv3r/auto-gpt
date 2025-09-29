@@ -1,36 +1,48 @@
-name: Mirror Repository
+name: Sync Fork
 
 on:
   schedule:
-    # Run every 1 am
-    - cron: '0 1 * * *'
-  workflow_dispatch:  # Allow manual triggering
-  push:
-    branches: [ master ]
+    # Runs every day at 00:00 UTC
+    - cron: "0 0 * * *"
+  workflow_dispatch: # Allows manual trigger
 
 jobs:
-  mirror:
+  sync:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout current repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Fetch all history for all branches and tags
-        
-    - name: Mirror from target repository
-      run: |
-        # Add target repository as remote
-        git remote add target https://github.com/BlackArch/blackarch.git
-        
-        # Fetch all branches and tags from target
-        git fetch target --tags
-        
-        # Push all branches to current repository
-        git push --all origin
-        
-        # Push all tags to current repository
-        git push --tags origin
-      env:
-        # Use a personal access token for write access
-        GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false  # We'll use our own token
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          # Replace with the repository you want to fork/sync from
+          git remote add upstream https://github.com/Significant-Gravitas/AutoGPT.git
+          git fetch upstream --prune
+
+      - name: Sync default branch
+        run: |
+          # Replace 'main' with the source repository’s default branch if different
+          git checkout master
+          git merge --ff-only upstream/master || true
+
+      - name: Push changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin main
+
+      - name: Sync all branches and tags
+        run: |
+          git fetch upstream --tags
+          for branch in $(git branch -r | grep upstream/ | grep -v upstream/main | sed 's|upstream/||'); do
+            git checkout -B $branch upstream/$branch
+            git push origin $branch
+          done
+          git push origin --tags
