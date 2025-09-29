@@ -1,23 +1,32 @@
-name: copy rtl8188eus
+name: Fork and Upload
 
 on:
-  workflow_dispatch:
-
+  workflow_dispatch: # Manual trigger
+  schedule:
+    - cron: '0 5 * * *'
+  
 jobs:
-  copy-repo:
+  fork_and_upload:
     runs-on: ubuntu-latest
     steps:
-    - name: Clone upstream repository
-      run: |
-        git clone https://github.com/aircrack-ng/rtl8188eus.git upstream-repo
-        cd upstream-repo
-        
-    - name: Configure and push to target
-      run: |
-        cd upstream-repo
-        git remote set-url origin https://${{ secrets.PAT_TOKEN }}@github.com/${{ github.repository }}.git
-        git push origin --all --force
-        git push origin --tags --force
-        
-    - name: Cleanup
-      run: rm -rf upstream-repo
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Clone source repository
+        run: |
+          git clone --depth=20 https://github.com/aircrack-ng/rtl8188eus.git upstream-repo
+
+      - name: Copy contents to current repo
+        run: |
+          rsync -av --exclude='.git' upstream-repo/ ./
+
+      - name: Set up git config
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and push changes
+        run: |
+          git add .
+          git diff --cached --quiet || git commit -m "Fork from upstream"
+          git push
