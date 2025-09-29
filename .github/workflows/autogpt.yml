@@ -4,7 +4,7 @@ on:
   schedule:
     # Runs every day at 00:00 UTC
     - cron: "0 0 * * *"
-  workflow_dispatch: # Allows manual trigger
+  workflow_dispatch:
 
 jobs:
   sync:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout target repository
         uses: actions/checkout@v4
         with:
-          persist-credentials: false  # We'll use our own token
+          persist-credentials: false # disable default credentials so we set our own
 
       - name: Set up Git
         run: |
@@ -22,27 +22,31 @@ jobs:
 
       - name: Add upstream remote
         run: |
-          # Replace with the repository you want to fork/sync from
+          # 👉 Replace with the source repo you want to mirror
           git remote add upstream https://github.com/Significant-Gravitas/AutoGPT.git
           git fetch upstream --prune
 
-      - name: Sync default branch
+      - name: Sync master branch
         run: |
-          # Replace 'main' with the source repository’s default branch if different
           git checkout master
           git merge --ff-only upstream/master || true
 
-      - name: Push changes
+      - name: Push changes (with token)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # 👉 Use authenticated URL to avoid username/password issues
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
           git push origin master
 
-      - name: Sync all branches and tags
+      - name: Sync all other branches and tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git fetch upstream --tags
           for branch in $(git branch -r | grep upstream/ | grep -v upstream/master | sed 's|upstream/||'); do
             git checkout -B $branch upstream/$branch
+            git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
             git push origin $branch
           done
           git push origin --tags
